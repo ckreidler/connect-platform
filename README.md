@@ -8,6 +8,8 @@ Call recordings, chat transcripts, and scheduled reports go to one private S3 bu
 
 The stage's `phoneNumbers` list is claimed onto the instance (`sandbox` claims one US DID). The number is retained and is not associated with a contact flow.
 
+One Amazon Q in Connect assistant (`AGENT`, name `chris-connect-<stage>-assistant`) is associated with the instance so feature apps share it. Encryption is the AWS owned key. The assistant is retained on stack delete; the association is deleted with the stack.
+
 Agent guidance for AWS work in this repo is in [.cursor/rules/aws.mdc](.cursor/rules/aws.mdc).
 
 ## Stages
@@ -55,6 +57,16 @@ const phoneNumber = StringParameter.valueForStringParameter(
   this,
   '/connect/sandbox/phone-number',
 );
+
+const assistantArn = StringParameter.valueForStringParameter(
+  this,
+  '/connect/sandbox/assistant-arn',
+);
+
+const assistantId = StringParameter.valueForStringParameter(
+  this,
+  '/connect/sandbox/assistant-id',
+);
 ```
 
 Parameters:
@@ -64,3 +76,5 @@ Parameters:
 - `/connect/<stage>/storage-bucket`
 - `/connect/<stage>/phone-number-arn`
 - `/connect/<stage>/phone-number` (E.164)
+- `/connect/<stage>/assistant-arn`
+- `/connect/<stage>/assistant-id`

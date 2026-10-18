@@ -2,7 +2,7 @@ import * as cdk from 'aws-cdk-lib/core';
 import { Match, Template } from 'aws-cdk-lib/assertions';
 import { defineConnectPlatform } from '../lib/stages';
 
-test('sandbox template has the Connect instance, storage, phone number, and SSM params', () => {
+test('sandbox template has the Connect instance, storage, phone number, assistant, and SSM params', () => {
   process.env.CDK_DEFAULT_REGION = 'us-east-1';
 
   const app = defineConnectPlatform(new cdk.App({ context: { stage: 'sandbox' } }));
@@ -116,7 +116,31 @@ test('sandbox template has the Connect instance, storage, phone number, and SSM 
   });
   const phoneLogicalId = Object.keys(template.findResources('AWS::Connect::PhoneNumber'))[0];
 
-  template.resourceCountIs('AWS::SSM::Parameter', 5);
+  template.resourceCountIs('AWS::Wisdom::Assistant', 1);
+  template.hasResource('AWS::Wisdom::Assistant', {
+    DeletionPolicy: 'Retain',
+    UpdateReplacePolicy: 'Retain',
+    Properties: {
+      Name: 'chris-connect-sandbox-assistant',
+      Type: 'AGENT',
+    },
+  });
+  const assistantLogicalId = Object.keys(template.findResources('AWS::Wisdom::Assistant'))[0];
+  expect(assistantLogicalId).toBe('Assistant');
+  const assistant = template.findResources('AWS::Wisdom::Assistant')[assistantLogicalId];
+  expect(assistant.Properties.ServerSideEncryptionConfiguration).toBeUndefined();
+
+  template.resourceCountIs('AWS::Connect::IntegrationAssociation', 1);
+  template.hasResourceProperties('AWS::Connect::IntegrationAssociation', {
+    InstanceId: { 'Fn::GetAtt': [instanceLogicalId, 'Arn'] },
+    IntegrationType: 'WISDOM_ASSISTANT',
+    IntegrationArn: { 'Fn::GetAtt': [assistantLogicalId, 'AssistantArn'] },
+  });
+  const association = template.findResources('AWS::Connect::IntegrationAssociation');
+  expect(Object.keys(association)).toEqual(['WisdomAssistantAssociation']);
+  expect(association.WisdomAssistantAssociation.DeletionPolicy).toBeUndefined();
+
+  template.resourceCountIs('AWS::SSM::Parameter', 7);
   template.hasResourceProperties('AWS::SSM::Parameter', {
     Name: '/connect/sandbox/instance-arn',
     Type: 'String',
@@ -141,6 +165,16 @@ test('sandbox template has the Connect instance, storage, phone number, and SSM 
     Name: '/connect/sandbox/phone-number',
     Type: 'String',
     Value: { 'Fn::GetAtt': [phoneLogicalId, 'Address'] },
+  });
+  template.hasResourceProperties('AWS::SSM::Parameter', {
+    Name: '/connect/sandbox/assistant-arn',
+    Type: 'String',
+    Value: { 'Fn::GetAtt': [assistantLogicalId, 'AssistantArn'] },
+  });
+  template.hasResourceProperties('AWS::SSM::Parameter', {
+    Name: '/connect/sandbox/assistant-id',
+    Type: 'String',
+    Value: { 'Fn::GetAtt': [assistantLogicalId, 'AssistantId'] },
   });
 
   const outputs = template.findOutputs('*');
