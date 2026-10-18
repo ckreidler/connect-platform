@@ -2,6 +2,7 @@ import * as cdk from 'aws-cdk-lib/core';
 import * as connect from 'aws-cdk-lib/aws-connect';
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as ssm from 'aws-cdk-lib/aws-ssm';
+import * as wisdom from 'aws-cdk-lib/aws-wisdom';
 import { Construct } from 'constructs';
 import type { StagePhoneNumber } from './stages';
 
@@ -39,6 +40,28 @@ export class ConnectPlatformStack extends cdk.Stack {
 
     new cdk.CfnOutput(this, 'InstanceArn', { value: instance.attrArn });
     new cdk.CfnOutput(this, 'InstanceId', { value: instance.attrId });
+
+    const assistant = new wisdom.CfnAssistant(this, 'Assistant', {
+      name: `chris-connect-${props.stage}-assistant`,
+      type: 'AGENT',
+    });
+    assistant.applyRemovalPolicy(cdk.RemovalPolicy.RETAIN);
+
+    new connect.CfnIntegrationAssociation(this, 'WisdomAssistantAssociation', {
+      instanceId: instance.attrArn,
+      integrationType: 'WISDOM_ASSISTANT',
+      integrationArn: assistant.attrAssistantArn,
+    });
+
+    new ssm.StringParameter(this, 'AssistantArnParameter', {
+      parameterName: `/connect/${props.stage}/assistant-arn`,
+      stringValue: assistant.attrAssistantArn,
+    });
+
+    new ssm.StringParameter(this, 'AssistantIdParameter', {
+      parameterName: `/connect/${props.stage}/assistant-id`,
+      stringValue: assistant.attrAssistantId,
+    });
 
     const recordingsPrefix = 'call-recordings/';
     const transcriptsPrefix = 'chat-transcripts/';
