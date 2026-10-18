@@ -1,5 +1,7 @@
+import * as cases from 'aws-cdk-lib/aws-cases';
 import * as cdk from 'aws-cdk-lib/core';
 import * as connect from 'aws-cdk-lib/aws-connect';
+import * as customerprofiles from 'aws-cdk-lib/aws-customerprofiles';
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as ssm from 'aws-cdk-lib/aws-ssm';
 import * as wisdom from 'aws-cdk-lib/aws-wisdom';
@@ -61,6 +63,45 @@ export class ConnectPlatformStack extends cdk.Stack {
     new ssm.StringParameter(this, 'AssistantIdParameter', {
       parameterName: `/connect/${props.stage}/assistant-id`,
       stringValue: assistant.attrAssistantId,
+    });
+
+    const profilesDomain = new customerprofiles.CfnDomain(this, 'ProfilesDomain', {
+      domainName: `chris-connect-${props.stage}-profiles`,
+      defaultExpirationDays: 366,
+    });
+    profilesDomain.applyRemovalPolicy(cdk.RemovalPolicy.RETAIN);
+
+    const profilesIntegration = new customerprofiles.CfnIntegration(this, 'ProfilesIntegration', {
+      domainName: profilesDomain.ref,
+      uri: instance.attrArn,
+      objectTypeName: 'CTR',
+    });
+
+    const casesDomain = new cases.CfnDomain(this, 'CasesDomain', {
+      name: `chris-connect-${props.stage}-cases`,
+    });
+    casesDomain.applyRemovalPolicy(cdk.RemovalPolicy.RETAIN);
+
+    const casesAssociation = new connect.CfnIntegrationAssociation(this, 'CasesDomainAssociation', {
+      instanceId: instance.attrArn,
+      integrationType: 'CASES_DOMAIN',
+      integrationArn: casesDomain.attrDomainArn,
+    });
+    casesAssociation.addResourceDependency(profilesIntegration);
+
+    new ssm.StringParameter(this, 'ProfilesDomainNameParameter', {
+      parameterName: `/connect/${props.stage}/profiles-domain-name`,
+      stringValue: profilesDomain.ref,
+    });
+
+    new ssm.StringParameter(this, 'CasesDomainIdParameter', {
+      parameterName: `/connect/${props.stage}/cases-domain-id`,
+      stringValue: casesDomain.attrDomainId,
+    });
+
+    new ssm.StringParameter(this, 'CasesDomainArnParameter', {
+      parameterName: `/connect/${props.stage}/cases-domain-arn`,
+      stringValue: casesDomain.attrDomainArn,
     });
 
     const recordingsPrefix = 'call-recordings/';

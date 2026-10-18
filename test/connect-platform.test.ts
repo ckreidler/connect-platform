@@ -2,7 +2,7 @@ import * as cdk from 'aws-cdk-lib/core';
 import { Match, Template } from 'aws-cdk-lib/assertions';
 import { defineConnectPlatform } from '../lib/stages';
 
-test('sandbox template has the Connect instance, storage, phone number, assistant, and SSM params', () => {
+test('sandbox template has the Connect instance, storage, phone number, assistant, cases, and SSM params', () => {
   process.env.CDK_DEFAULT_REGION = 'us-east-1';
 
   const app = defineConnectPlatform(new cdk.App({ context: { stage: 'sandbox' } }));
@@ -139,17 +139,65 @@ test('sandbox template has the Connect instance, storage, phone number, assistan
   const assistant = template.findResources('AWS::Wisdom::Assistant')[assistantLogicalId];
   expect(assistant.Properties.ServerSideEncryptionConfiguration).toBeUndefined();
 
-  template.resourceCountIs('AWS::Connect::IntegrationAssociation', 1);
+  template.resourceCountIs('AWS::CustomerProfiles::Domain', 1);
+  template.resourceCountIs('AWS::CustomerProfiles::EventStream', 0);
+  template.hasResource('AWS::CustomerProfiles::Domain', {
+    DeletionPolicy: 'Retain',
+    UpdateReplacePolicy: 'Retain',
+    Properties: Match.objectEquals({
+      DomainName: 'chris-connect-sandbox-profiles',
+      DefaultExpirationDays: 366,
+    }),
+  });
+  const profilesDomainLogicalId = Object.keys(template.findResources('AWS::CustomerProfiles::Domain'))[0];
+  expect(profilesDomainLogicalId).toBe('ProfilesDomain');
+
+  template.resourceCountIs('AWS::CustomerProfiles::Integration', 1);
+  template.hasResource('AWS::CustomerProfiles::Integration', {
+    Properties: Match.objectEquals({
+      DomainName: { Ref: profilesDomainLogicalId },
+      Uri: { 'Fn::GetAtt': [instanceLogicalId, 'Arn'] },
+      ObjectTypeName: 'CTR',
+    }),
+  });
+  const profilesIntegration = template.findResources('AWS::CustomerProfiles::Integration');
+  expect(Object.keys(profilesIntegration)).toEqual(['ProfilesIntegration']);
+  expect(profilesIntegration.ProfilesIntegration.DeletionPolicy).toBeUndefined();
+
+  template.resourceCountIs('AWS::Cases::Domain', 1);
+  template.resourceCountIs('AWS::Cases::Field', 0);
+  template.resourceCountIs('AWS::Cases::Template', 0);
+  template.resourceCountIs('AWS::Cases::Layout', 0);
+  template.hasResource('AWS::Cases::Domain', {
+    DeletionPolicy: 'Retain',
+    UpdateReplacePolicy: 'Retain',
+    Properties: Match.objectEquals({
+      Name: 'chris-connect-sandbox-cases',
+    }),
+  });
+  const casesDomainLogicalId = Object.keys(template.findResources('AWS::Cases::Domain'))[0];
+  expect(casesDomainLogicalId).toBe('CasesDomain');
+
+  template.resourceCountIs('AWS::Connect::IntegrationAssociation', 2);
   template.hasResourceProperties('AWS::Connect::IntegrationAssociation', {
     InstanceId: { 'Fn::GetAtt': [instanceLogicalId, 'Arn'] },
     IntegrationType: 'WISDOM_ASSISTANT',
     IntegrationArn: { 'Fn::GetAtt': [assistantLogicalId, 'AssistantArn'] },
   });
+  template.hasResourceProperties('AWS::Connect::IntegrationAssociation', {
+    InstanceId: { 'Fn::GetAtt': [instanceLogicalId, 'Arn'] },
+    IntegrationType: 'CASES_DOMAIN',
+    IntegrationArn: { 'Fn::GetAtt': [casesDomainLogicalId, 'DomainArn'] },
+  });
   const association = template.findResources('AWS::Connect::IntegrationAssociation');
-  expect(Object.keys(association)).toEqual(['WisdomAssistantAssociation']);
+  expect(Object.keys(association).sort()).toEqual(['CasesDomainAssociation', 'WisdomAssistantAssociation']);
   expect(association.WisdomAssistantAssociation.DeletionPolicy).toBeUndefined();
+  expect(association.CasesDomainAssociation.DeletionPolicy).toBeUndefined();
+  const casesDependsOn = association.CasesDomainAssociation.DependsOn;
+  const casesDependencies = Array.isArray(casesDependsOn) ? casesDependsOn : [casesDependsOn];
+  expect(casesDependencies).toContain('ProfilesIntegration');
 
-  template.resourceCountIs('AWS::SSM::Parameter', 7);
+  template.resourceCountIs('AWS::SSM::Parameter', 10);
   template.hasResourceProperties('AWS::SSM::Parameter', {
     Name: '/connect/sandbox/instance-arn',
     Type: 'String',
@@ -184,6 +232,21 @@ test('sandbox template has the Connect instance, storage, phone number, assistan
     Name: '/connect/sandbox/assistant-id',
     Type: 'String',
     Value: { 'Fn::GetAtt': [assistantLogicalId, 'AssistantId'] },
+  });
+  template.hasResourceProperties('AWS::SSM::Parameter', {
+    Name: '/connect/sandbox/profiles-domain-name',
+    Type: 'String',
+    Value: { Ref: profilesDomainLogicalId },
+  });
+  template.hasResourceProperties('AWS::SSM::Parameter', {
+    Name: '/connect/sandbox/cases-domain-id',
+    Type: 'String',
+    Value: { 'Fn::GetAtt': [casesDomainLogicalId, 'DomainId'] },
+  });
+  template.hasResourceProperties('AWS::SSM::Parameter', {
+    Name: '/connect/sandbox/cases-domain-arn',
+    Type: 'String',
+    Value: { 'Fn::GetAtt': [casesDomainLogicalId, 'DomainArn'] },
   });
 
   const outputs = template.findOutputs('*');

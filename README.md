@@ -10,6 +10,10 @@ The stage's `phoneNumbers` list is claimed onto the instance (`sandbox` claims o
 
 One Amazon Q in Connect assistant (`AGENT`, name `chris-connect-<stage>-assistant`) is associated with the instance so feature apps share it. Encryption is the AWS owned key. The assistant is retained on stack delete; the association is deleted with the stack.
 
+One Customer Profiles domain (`chris-connect-<stage>-profiles`, default expiration 366 days, no data store or matching) is linked to the instance with a contact trace record integration (`ObjectTypeName` `CTR`, URI the instance ARN). The domain is retained on stack delete.
+
+One Cases domain (`chris-connect-<stage>-cases`) is associated with the instance as `CASES_DOMAIN`. That association depends on the Customer Profiles integration. The domain is retained on stack delete; the association is deleted with the stack.
+
 Agent guidance for AWS work in this repo is in [.cursor/rules/aws.mdc](.cursor/rules/aws.mdc).
 
 ## Stages
@@ -67,6 +71,21 @@ const assistantId = StringParameter.valueForStringParameter(
   this,
   '/connect/sandbox/assistant-id',
 );
+
+const profilesDomainName = StringParameter.valueForStringParameter(
+  this,
+  '/connect/sandbox/profiles-domain-name',
+);
+
+const casesDomainId = StringParameter.valueForStringParameter(
+  this,
+  '/connect/sandbox/cases-domain-id',
+);
+
+const casesDomainArn = StringParameter.valueForStringParameter(
+  this,
+  '/connect/sandbox/cases-domain-arn',
+);
 ```
 
 Parameters:
@@ -78,3 +97,6 @@ Parameters:
 - `/connect/<stage>/phone-number` (E.164)
 - `/connect/<stage>/assistant-arn`
 - `/connect/<stage>/assistant-id`
+- `/connect/<stage>/profiles-domain-name`
+- `/connect/<stage>/cases-domain-id`
+- `/connect/<stage>/cases-domain-arn`
