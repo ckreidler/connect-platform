@@ -2,7 +2,7 @@ import * as cdk from 'aws-cdk-lib/core';
 import { Match, Template } from 'aws-cdk-lib/assertions';
 import { defineConnectPlatform } from '../lib/stages';
 
-test('sandbox template has the Connect instance, SSM params, and termination protection', () => {
+test('sandbox template has the Connect instance, storage, phone number, and SSM params', () => {
   process.env.CDK_DEFAULT_REGION = 'us-east-1';
 
   const app = defineConnectPlatform(new cdk.App({ context: { stage: 'sandbox' } }));
@@ -34,8 +34,89 @@ test('sandbox template has the Connect instance, SSM params, and termination pro
   });
 
   const instanceLogicalId = Object.keys(template.findResources('AWS::Connect::Instance'))[0];
+  expect(instanceLogicalId).toBe('Instance');
 
-  template.resourceCountIs('AWS::SSM::Parameter', 2);
+  template.resourceCountIs('AWS::S3::Bucket', 1);
+  template.resourceCountIs('AWS::KMS::Key', 0);
+  template.resourceCountIs('AWS::Kinesis::Stream', 0);
+  const bucketLogicalId = Object.keys(template.findResources('AWS::S3::Bucket'))[0];
+  template.hasResource('AWS::S3::Bucket', {
+    DeletionPolicy: 'Retain',
+    UpdateReplacePolicy: 'Retain',
+    Properties: {
+      PublicAccessBlockConfiguration: {
+        BlockPublicAcls: true,
+        BlockPublicPolicy: true,
+        IgnorePublicAcls: true,
+        RestrictPublicBuckets: true,
+      },
+      BucketEncryption: {
+        ServerSideEncryptionConfiguration: [
+          { ServerSideEncryptionByDefault: { SSEAlgorithm: 'AES256' } },
+        ],
+      },
+      LifecycleConfiguration: {
+        Rules: Match.arrayEquals([
+          Match.objectLike({
+            Prefix: 'call-recordings/',
+            ExpirationInDays: 30,
+            Status: 'Enabled',
+          }),
+          Match.objectLike({
+            Prefix: 'chat-transcripts/',
+            ExpirationInDays: 30,
+            Status: 'Enabled',
+          }),
+        ]),
+      },
+    },
+  });
+  const bucket = template.findResources('AWS::S3::Bucket')[bucketLogicalId];
+  expect(bucket.Properties.VersioningConfiguration).toBeUndefined();
+
+  template.hasResourceProperties('AWS::S3::BucketPolicy', {
+    Bucket: { Ref: bucketLogicalId },
+    PolicyDocument: {
+      Statement: Match.arrayWith([
+        Match.objectLike({
+          Effect: 'Deny',
+          Condition: { Bool: { 'aws:SecureTransport': 'false' } },
+        }),
+      ]),
+    },
+  });
+
+  template.resourceCountIs('AWS::Connect::InstanceStorageConfig', 3);
+  for (const [resourceType, bucketPrefix] of [
+    ['CALL_RECORDINGS', 'call-recordings/'],
+    ['CHAT_TRANSCRIPTS', 'chat-transcripts/'],
+    ['SCHEDULED_REPORTS', 'scheduled-reports/'],
+  ]) {
+    template.hasResourceProperties('AWS::Connect::InstanceStorageConfig', {
+      InstanceArn: { 'Fn::GetAtt': [instanceLogicalId, 'Arn'] },
+      ResourceType: resourceType,
+      StorageType: 'S3',
+      S3Config: {
+        BucketName: { Ref: bucketLogicalId },
+        BucketPrefix: bucketPrefix,
+      },
+    });
+  }
+
+  template.resourceCountIs('AWS::Connect::PhoneNumber', 1);
+  template.hasResource('AWS::Connect::PhoneNumber', {
+    DeletionPolicy: 'Retain',
+    UpdateReplacePolicy: 'Retain',
+    Properties: {
+      CountryCode: 'US',
+      Type: 'DID',
+      Description: 'ConnectPlatform-sandbox',
+      TargetArn: { 'Fn::GetAtt': [instanceLogicalId, 'Arn'] },
+    },
+  });
+  const phoneLogicalId = Object.keys(template.findResources('AWS::Connect::PhoneNumber'))[0];
+
+  template.resourceCountIs('AWS::SSM::Parameter', 5);
   template.hasResourceProperties('AWS::SSM::Parameter', {
     Name: '/connect/sandbox/instance-arn',
     Type: 'String',
@@ -45,6 +126,21 @@ test('sandbox template has the Connect instance, SSM params, and termination pro
     Name: '/connect/sandbox/instance-id',
     Type: 'String',
     Value: { 'Fn::GetAtt': [instanceLogicalId, 'Id'] },
+  });
+  template.hasResourceProperties('AWS::SSM::Parameter', {
+    Name: '/connect/sandbox/storage-bucket',
+    Type: 'String',
+    Value: { Ref: bucketLogicalId },
+  });
+  template.hasResourceProperties('AWS::SSM::Parameter', {
+    Name: '/connect/sandbox/phone-number-arn',
+    Type: 'String',
+    Value: { 'Fn::GetAtt': [phoneLogicalId, 'PhoneNumberArn'] },
+  });
+  template.hasResourceProperties('AWS::SSM::Parameter', {
+    Name: '/connect/sandbox/phone-number',
+    Type: 'String',
+    Value: { 'Fn::GetAtt': [phoneLogicalId, 'Address'] },
   });
 
   const outputs = template.findOutputs('*');
