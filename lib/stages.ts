@@ -1,9 +1,16 @@
 import * as cdk from 'aws-cdk-lib/core';
 import { ConnectPlatformStack } from './connect-platform-stack';
 
+export interface StagePhoneNumber {
+  readonly countryCode: string;
+  readonly type: string;
+}
+
 export interface StageConfig {
   readonly account: string;
   readonly region: string;
+  readonly storageRetentionDays: number;
+  readonly phoneNumbers: readonly StagePhoneNumber[];
 }
 
 export const stages = {
@@ -16,6 +23,8 @@ export const stages = {
       }
       return region;
     },
+    storageRetentionDays: 30,
+    phoneNumbers: [{ countryCode: 'US', type: 'DID' }],
   },
 } satisfies Record<string, StageConfig>;
 
@@ -39,6 +48,8 @@ export function defineConnectPlatform(app: cdk.App): cdk.App {
     },
     terminationProtection: true,
     stage,
+    storageRetentionDays: config.storageRetentionDays,
+    phoneNumbers: config.phoneNumbers,
   });
   return app;
 }
