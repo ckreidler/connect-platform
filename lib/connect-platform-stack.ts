@@ -16,6 +16,11 @@ export class ConnectPlatformStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props: ConnectPlatformStackProps) {
     super(scope, id, props);
 
+    // Managed notifications replace the bucket's entire configuration. This flag
+    // makes the handler read and merge, so EventBridge does not drop anything
+    // already on the bucket. Set on the stack because unit tests do not load cdk.json.
+    this.node.setContext('@aws-cdk/aws-s3:keepNotificationInImportedBucket', true);
+
     const instance = new connect.CfnInstance(this, 'Instance', {
       identityManagementType: 'CONNECT_MANAGED',
       instanceAlias: `chris-connect-${props.stage}`,
@@ -73,6 +78,7 @@ export class ConnectPlatformStack extends cdk.Stack {
       enforceSSL: true,
       versioned: false,
       removalPolicy: cdk.RemovalPolicy.RETAIN,
+      eventBridgeEnabled: true,
       lifecycleRules: [
         { prefix: recordingsPrefix, expiration: cdk.Duration.days(props.storageRetentionDays) },
         { prefix: transcriptsPrefix, expiration: cdk.Duration.days(props.storageRetentionDays) },

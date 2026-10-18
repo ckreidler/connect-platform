@@ -40,6 +40,7 @@ test('sandbox template has the Connect instance, storage, phone number, assistan
   template.resourceCountIs('AWS::KMS::Key', 0);
   template.resourceCountIs('AWS::Kinesis::Stream', 0);
   const bucketLogicalId = Object.keys(template.findResources('AWS::S3::Bucket'))[0];
+  expect(bucketLogicalId).toBe('StorageBucket19DB2FF8');
   template.hasResource('AWS::S3::Bucket', {
     DeletionPolicy: 'Retain',
     UpdateReplacePolicy: 'Retain',
@@ -73,6 +74,26 @@ test('sandbox template has the Connect instance, storage, phone number, assistan
   });
   const bucket = template.findResources('AWS::S3::Bucket')[bucketLogicalId];
   expect(bucket.Properties.VersioningConfiguration).toBeUndefined();
+  expect(bucket.Properties.NotificationConfiguration).toBeUndefined();
+
+  template.resourceCountIs('Custom::S3BucketNotifications', 1);
+  template.hasResourceProperties('Custom::S3BucketNotifications', {
+    BucketName: { Ref: bucketLogicalId },
+    Managed: false,
+    NotificationConfiguration: {
+      EventBridgeConfiguration: {},
+    },
+  });
+  const notificationActions = Object.values(template.findResources('AWS::IAM::Policy')).flatMap((policy) => {
+    const statements = policy.Properties?.PolicyDocument?.Statement ?? [];
+    return statements.flatMap((statement: { Action?: string | string[] }) =>
+      Array.isArray(statement.Action) ? statement.Action : [statement.Action],
+    );
+  });
+  expect(notificationActions).toEqual(expect.arrayContaining([
+    's3:GetBucketNotification',
+    's3:PutBucketNotification',
+  ]));
 
   template.hasResourceProperties('AWS::S3::BucketPolicy', {
     Bucket: { Ref: bucketLogicalId },
