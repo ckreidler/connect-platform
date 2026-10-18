@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "skills": {
+    "aws-cdk": {
+      "source": "aws/agent-toolkit-for-aws",
+      "sourceType": "github",
+      "skillPath": "skills/core-skills/aws-cdk/SKILL.md",
+      "computedHash": "5e271d9bafd18ae3575bd8e84b00256b47e1592663a11e1cfd89fd30d1321d92"
+    },
+    "aws-cloudformation": {
+      "source": "aws/agent-toolkit-for-aws",
+      "sourceType": "github",
+      "skillPath": "skills/core-skills/aws-cloudformation/SKILL.md",
+      "computedHash": "a3a2baa1dda4cdd8a054f29bdc899488c4d280349fc6ec1fb17f69e37e031ed2"
+    },
+    "aws-iam": {
+      "source": "aws/agent-toolkit-for-aws",
+      "sourceType": "github",
+      "skillPath": "skills/core-skills/aws-iam/SKILL.md",
+      "computedHash": "b2823e620706ccd7286ec37c68c7fb954db11e0d7154915ea640f81ee1cd6eaa"
+    },
+    "aws-serverless": {
+      "source": "aws/agent-toolkit-for-aws",
+      "sourceType": "github",
+      "skillPath": "skills/core-skills/aws-serverless/SKILL.md",
+      "computedHash": "0a82142905b87615e7a60eb2b3e237512e6e35357b85880edb05578f0df34c24"
+    }
+  }
+}

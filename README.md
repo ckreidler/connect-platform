@@ -8,6 +8,8 @@ Call recordings, chat transcripts, and scheduled reports go to one private S3 bu
 
 The stage's `phoneNumbers` list is claimed onto the instance (`sandbox` claims one US DID). The number is retained and is not associated with a contact flow.
 
+Agent guidance for AWS work in this repo is in [.cursor/rules/aws.mdc](.cursor/rules/aws.mdc).
+
 ## Stages
 
 Stage is required context and must be a key in `stages` (`lib/stages.ts`). `sandbox` is the only entry: account `945777367807`, region `CDK_DEFAULT_REGION` (the CDK CLI sets that from your AWS configuration), `storageRetentionDays: 30`, and `phoneNumbers: [{ countryCode: 'US', type: 'DID' }]`. Adding `prod` later is another entry in that map, with its own retention and phone number list.
