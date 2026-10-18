@@ -4,6 +4,8 @@ Long-lived Amazon Connect base stack. Other CDK apps deploy features onto the in
 
 The stack creates one Connect instance (`CONNECT_MANAGED`, inbound and outbound calls, contact flow logs, Contact Lens) and publishes its ARN and ID. It does not claim a phone number. Termination protection is on, and the instance is retained on stack delete.
 
+Agent guidance for AWS work in this repo is in [.cursor/rules/aws.mdc](.cursor/rules/aws.mdc).
+
 ## Stages
 
 Stage is required context and must be a key in `stages` (`lib/stages.ts`). `sandbox` is the only entry: account `945777367807`, region `CDK_DEFAULT_REGION` (the CDK CLI sets that from your AWS configuration). Adding `prod` later is another entry in that map.
