@@ -86,6 +86,15 @@ test('sandbox template has the Connect instance, storage, phone number, assistan
     },
   });
 
+  expect(bucketLogicalId.startsWith('StorageBucket')).toBe(true);
+  template.resourceCountIs('Custom::S3BucketNotifications', 1);
+  template.hasResourceProperties('Custom::S3BucketNotifications', {
+    BucketName: { Ref: bucketLogicalId },
+    NotificationConfiguration: Match.objectEquals({
+      EventBridgeConfiguration: Match.objectEquals({}),
+    }),
+  });
+
   template.resourceCountIs('AWS::Connect::InstanceStorageConfig', 3);
   for (const [resourceType, bucketPrefix] of [
     ['CALL_RECORDINGS', 'call-recordings/'],

@@ -72,6 +72,7 @@ export class ConnectPlatformStack extends cdk.Stack {
       encryption: s3.BucketEncryption.S3_MANAGED,
       enforceSSL: true,
       versioned: false,
+      eventBridgeEnabled: true,
       removalPolicy: cdk.RemovalPolicy.RETAIN,
       lifecycleRules: [
         { prefix: recordingsPrefix, expiration: cdk.Duration.days(props.storageRetentionDays) },
