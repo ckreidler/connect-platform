@@ -142,8 +142,6 @@ test('sandbox template has the Connect instance, storage, phone number, assistan
   template.resourceCountIs('AWS::CustomerProfiles::Domain', 1);
   template.resourceCountIs('AWS::CustomerProfiles::EventStream', 0);
   template.hasResource('AWS::CustomerProfiles::Domain', {
-    DeletionPolicy: 'Retain',
-    UpdateReplacePolicy: 'Retain',
     Properties: Match.objectEquals({
       DomainName: 'chris-connect-sandbox-profiles',
       DefaultExpirationDays: 366,
@@ -151,6 +149,9 @@ test('sandbox template has the Connect instance, storage, phone number, assistan
   });
   const profilesDomainLogicalId = Object.keys(template.findResources('AWS::CustomerProfiles::Domain'))[0];
   expect(profilesDomainLogicalId).toBe('ProfilesDomain');
+  const profilesDomain = template.findResources('AWS::CustomerProfiles::Domain')[profilesDomainLogicalId];
+  expect(profilesDomain.DeletionPolicy).toBeUndefined();
+  expect(profilesDomain.UpdateReplacePolicy).toBeUndefined();
 
   template.resourceCountIs('AWS::CustomerProfiles::Integration', 1);
   template.hasResource('AWS::CustomerProfiles::Integration', {
@@ -169,14 +170,15 @@ test('sandbox template has the Connect instance, storage, phone number, assistan
   template.resourceCountIs('AWS::Cases::Template', 0);
   template.resourceCountIs('AWS::Cases::Layout', 0);
   template.hasResource('AWS::Cases::Domain', {
-    DeletionPolicy: 'Retain',
-    UpdateReplacePolicy: 'Retain',
     Properties: Match.objectEquals({
       Name: 'chris-connect-sandbox-cases',
     }),
   });
   const casesDomainLogicalId = Object.keys(template.findResources('AWS::Cases::Domain'))[0];
   expect(casesDomainLogicalId).toBe('CasesDomain');
+  const casesDomain = template.findResources('AWS::Cases::Domain')[casesDomainLogicalId];
+  expect(casesDomain.DeletionPolicy).toBeUndefined();
+  expect(casesDomain.UpdateReplacePolicy).toBeUndefined();
 
   template.resourceCountIs('AWS::Connect::IntegrationAssociation', 2);
   template.hasResourceProperties('AWS::Connect::IntegrationAssociation', {

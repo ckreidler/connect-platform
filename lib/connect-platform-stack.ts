@@ -69,7 +69,6 @@ export class ConnectPlatformStack extends cdk.Stack {
       domainName: `chris-connect-${props.stage}-profiles`,
       defaultExpirationDays: 366,
     });
-    profilesDomain.applyRemovalPolicy(cdk.RemovalPolicy.RETAIN);
 
     const profilesIntegration = new customerprofiles.CfnIntegration(this, 'ProfilesIntegration', {
       domainName: profilesDomain.ref,
@@ -80,7 +79,6 @@ export class ConnectPlatformStack extends cdk.Stack {
     const casesDomain = new cases.CfnDomain(this, 'CasesDomain', {
       name: `chris-connect-${props.stage}-cases`,
     });
-    casesDomain.applyRemovalPolicy(cdk.RemovalPolicy.RETAIN);
 
     const casesAssociation = new connect.CfnIntegrationAssociation(this, 'CasesDomainAssociation', {
       instanceId: instance.attrArn,
