@@ -154,6 +154,18 @@ test('sandbox template has the Connect instance, storage, phone number, assistan
   expect(profilesDomain.DeletionPolicy).toBeUndefined();
   expect(profilesDomain.UpdateReplacePolicy).toBeUndefined();
 
+  template.resourceCountIs('AWS::CustomerProfiles::ObjectType', 1);
+  template.hasResource('AWS::CustomerProfiles::ObjectType', {
+    Properties: Match.objectEquals({
+      DomainName: { Ref: profilesDomainLogicalId },
+      ObjectTypeName: 'CTR',
+      TemplateId: 'CTR-NoInferred',
+      Description: 'Creates inferred profiles and auto-associates profiles',
+    }),
+  });
+  const ctrObjectTypeLogicalId = Object.keys(template.findResources('AWS::CustomerProfiles::ObjectType'))[0];
+  expect(ctrObjectTypeLogicalId).toBe('CtrObjectType');
+
   template.resourceCountIs('AWS::CustomerProfiles::Integration', 1);
   template.hasResource('AWS::CustomerProfiles::Integration', {
     UpdateReplacePolicy: 'Retain',
@@ -180,6 +192,7 @@ test('sandbox template has the Connect instance, storage, phone number, assistan
   const integrationDependsOn = profilesIntegration.ProfilesIntegration.DependsOn;
   const integrationDependencies = Array.isArray(integrationDependsOn) ? integrationDependsOn : [integrationDependsOn];
   expect(integrationDependencies).toContain(disassociateLogicalId);
+  expect(integrationDependencies).toContain(ctrObjectTypeLogicalId);
 
   template.hasResourceProperties('AWS::IAM::Policy', {
     PolicyDocument: {
