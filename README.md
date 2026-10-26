@@ -10,9 +10,9 @@ The stage's `phoneNumbers` list is claimed onto the instance (`sandbox` claims o
 
 One Amazon Q in Connect assistant (`AGENT`, name `chris-connect-<stage>-assistant`) is associated with the instance so feature apps share it. Encryption is the AWS owned key. The assistant is retained on stack delete; the association is deleted with the stack.
 
-One Customer Profiles domain (`chris-connect-<stage>-profiles`, default expiration 366 days, no data store or matching) is linked to the instance with a contact trace record integration (`ObjectTypeName` `CTR`, URI the instance ARN). The domain is deleted with the stack.
+One Customer Profiles domain (`amazon-connect-<stage>-profiles`, default expiration 366 days, no data store or matching) is linked to the instance with a contact trace record integration (`ObjectTypeName` `CTR`, URI the instance ARN). The name has to start with `amazon-connect-`: `AmazonConnectServiceLinkedRolePolicy` grants `profile:*` only on `domains/amazon-connect-*`. The domain is replaced when that name changes, which deletes the previous domain and its profiles. The domain is deleted with the stack.
 
-One Cases domain (`chris-connect-<stage>-cases`) is associated with the instance as `CASES_DOMAIN`. That association depends on the Customer Profiles integration. The domain and the association are deleted with the stack.
+Connect allows one Customer Profiles domain per instance. That association is the Customer Profiles integration, not an `AWS::Connect::IntegrationAssociation`. CloudFormation replaces the integration by creating the new one before it deletes the old one. A custom resource calls `DeleteIntegration` for the previous domain (`chris-connect-<stage>-profiles`) and this instance before the new integration is created. `ResourceNotFoundException` is ignored, so a new environment still deploys. The integration's `UpdateReplacePolicy` is `Retain` and its `DeletionPolicy` is `Delete`, so CloudFormation does not call `DeleteIntegration` on the previous integration after the custom resource has already removed it. Deleting the stack still deletes the current integration.
 
 Agent guidance for AWS work in this repo is in [.cursor/rules/aws.mdc](.cursor/rules/aws.mdc).
 
@@ -76,16 +76,6 @@ const profilesDomainName = StringParameter.valueForStringParameter(
   this,
   '/connect/sandbox/profiles-domain-name',
 );
-
-const casesDomainId = StringParameter.valueForStringParameter(
-  this,
-  '/connect/sandbox/cases-domain-id',
-);
-
-const casesDomainArn = StringParameter.valueForStringParameter(
-  this,
-  '/connect/sandbox/cases-domain-arn',
-);
 ```
 
 Parameters:
@@ -98,5 +88,3 @@ Parameters:
 - `/connect/<stage>/assistant-arn`
 - `/connect/<stage>/assistant-id`
 - `/connect/<stage>/profiles-domain-name`
-- `/connect/<stage>/cases-domain-id`
-- `/connect/<stage>/cases-domain-arn`

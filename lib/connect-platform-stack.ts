@@ -1,12 +1,26 @@
-import * as cases from 'aws-cdk-lib/aws-cases';
 import * as cdk from 'aws-cdk-lib/core';
 import * as connect from 'aws-cdk-lib/aws-connect';
+import * as cr from 'aws-cdk-lib/custom-resources';
 import * as customerprofiles from 'aws-cdk-lib/aws-customerprofiles';
+import * as iam from 'aws-cdk-lib/aws-iam';
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as ssm from 'aws-cdk-lib/aws-ssm';
 import * as wisdom from 'aws-cdk-lib/aws-wisdom';
 import { Construct } from 'constructs';
 import type { StagePhoneNumber } from './stages';
+
+// AmazonConnectServiceLinkedRolePolicy grants profile:* only on domains/amazon-connect-*.
+const CUSTOMER_PROFILES_DOMAIN_PREFIX = 'amazon-connect-';
+
+function customerProfilesDomainName(stage: string): string {
+  const domainName = `${CUSTOMER_PROFILES_DOMAIN_PREFIX}${stage}-profiles`;
+  if (!domainName.startsWith('amazon-connect-')) {
+    throw new Error(
+      `Customer Profiles domain "${domainName}" must start with amazon-connect- so the Connect service-linked role can call profile:* on it.`,
+    );
+  }
+  return domainName;
+}
 
 export interface ConnectPlatformStackProps extends cdk.StackProps {
   readonly stage: string;
@@ -66,8 +80,40 @@ export class ConnectPlatformStack extends cdk.Stack {
     });
 
     const profilesDomain = new customerprofiles.CfnDomain(this, 'ProfilesDomain', {
-      domainName: `chris-connect-${props.stage}-profiles`,
+      domainName: customerProfilesDomainName(props.stage),
       defaultExpirationDays: 366,
+    });
+
+    // Connect allows one Customer Profiles domain per instance. That association
+    // is this CTR integration. Replacing it creates the new integration before
+    // deleting the old one, so delete the previous integration first.
+    // UpdateReplacePolicy Retain stops CloudFormation from calling
+    // DeleteIntegration again on the integration this resource already removed.
+    const previousProfilesDomainName = `chris-connect-${props.stage}-profiles`;
+    const disassociatePreviousProfilesDomain = new cr.AwsCustomResource(this, 'DisassociatePreviousProfilesDomain', {
+      onCreate: {
+        service: 'CustomerProfiles',
+        action: 'deleteIntegration',
+        parameters: {
+          DomainName: previousProfilesDomainName,
+          Uri: instance.attrArn,
+        },
+        physicalResourceId: cr.PhysicalResourceId.of(`disassociate-previous-profiles-${props.stage}`),
+        ignoreErrorCodesMatching: 'ResourceNotFoundException',
+      },
+      policy: cr.AwsCustomResourcePolicy.fromStatements([
+        new iam.PolicyStatement({
+          actions: ['profile:DeleteIntegration'],
+          resources: [
+            this.formatArn({
+              service: 'profile',
+              resource: 'domains',
+              resourceName: `${previousProfilesDomainName}/integrations/*`,
+            }),
+          ],
+        }),
+      ]),
+      installLatestAwsSdk: false,
     });
 
     const profilesIntegration = new customerprofiles.CfnIntegration(this, 'ProfilesIntegration', {
@@ -75,31 +121,19 @@ export class ConnectPlatformStack extends cdk.Stack {
       uri: instance.attrArn,
       objectTypeName: 'CTR',
     });
-
-    const casesDomain = new cases.CfnDomain(this, 'CasesDomain', {
-      name: `chris-connect-${props.stage}-cases`,
-    });
-
-    const casesAssociation = new connect.CfnIntegrationAssociation(this, 'CasesDomainAssociation', {
-      instanceId: instance.attrArn,
-      integrationType: 'CASES_DOMAIN',
-      integrationArn: casesDomain.attrDomainArn,
-    });
-    casesAssociation.addResourceDependency(profilesIntegration);
+    profilesIntegration.node.addDependency(disassociatePreviousProfilesDomain);
+    // Retain only the resource CloudFormation replaces. Stack deletion still deletes
+    // the integration that remains. Both policies are set so the split is explicit.
+    profilesIntegration.cfnOptions.deletionPolicy = cdk.CfnDeletionPolicy.DELETE;
+    profilesIntegration.cfnOptions.updateReplacePolicy = cdk.CfnDeletionPolicy.RETAIN;
+    cdk.Annotations.of(profilesIntegration).acknowledgeWarning(
+      'CloudFormation-Validate::W3011',
+      'UpdateReplacePolicy is Retain so this domain replacement does not delete the previous integration twice. DeletionPolicy stays Delete so stack deletion removes the current integration.',
+    );
 
     new ssm.StringParameter(this, 'ProfilesDomainNameParameter', {
       parameterName: `/connect/${props.stage}/profiles-domain-name`,
       stringValue: profilesDomain.ref,
-    });
-
-    new ssm.StringParameter(this, 'CasesDomainIdParameter', {
-      parameterName: `/connect/${props.stage}/cases-domain-id`,
-      stringValue: casesDomain.attrDomainId,
-    });
-
-    new ssm.StringParameter(this, 'CasesDomainArnParameter', {
-      parameterName: `/connect/${props.stage}/cases-domain-arn`,
-      stringValue: casesDomain.attrDomainArn,
     });
 
     const recordingsPrefix = 'call-recordings/';
