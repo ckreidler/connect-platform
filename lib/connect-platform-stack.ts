@@ -116,12 +116,20 @@ export class ConnectPlatformStack extends cdk.Stack {
       installLatestAwsSdk: false,
     });
 
+    const ctrObjectType = new customerprofiles.CfnObjectType(this, 'CtrObjectType', {
+      domainName: profilesDomain.ref,
+      objectTypeName: 'CTR',
+      templateId: 'CTR-NoInferred',
+      description: 'Creates inferred profiles and auto-associates profiles',
+    });
+
     const profilesIntegration = new customerprofiles.CfnIntegration(this, 'ProfilesIntegration', {
       domainName: profilesDomain.ref,
       uri: instance.attrArn,
       objectTypeName: 'CTR',
     });
     profilesIntegration.node.addDependency(disassociatePreviousProfilesDomain);
+    profilesIntegration.node.addDependency(ctrObjectType);
     // Retain only the resource CloudFormation replaces. Stack deletion still deletes
     // the integration that remains. Both policies are set so the split is explicit.
     profilesIntegration.cfnOptions.deletionPolicy = cdk.CfnDeletionPolicy.DELETE;
